@@ -1,0 +1,8 @@
+/config.php
+/venv/
+/storage/
+/.git/
+/*.pt
+/logs/
+/config.py
+/.idea/

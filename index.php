@@ -1,9 +1,7 @@
 <?php
 header('Content-Type: application/json');
 
-define('STORAGE', __DIR__ . '/storage');
-define('PY',      'python');
-define('MIN_CSV', 50);
+require_once('config.php');
 
 if (!is_dir(STORAGE)) mkdir(STORAGE, 0755, true);
 
@@ -116,7 +114,7 @@ case 'predict':
     if (empty($_FILES['file']['tmp_name'])) fail('No CSV');
     $tmp = "$d/query.csv";
     if (!move_uploaded_file($_FILES['file']['tmp_name'], $tmp)) fail('upload fail');
-    $cd  = 'cd /D '.escapeshellarg($d);
+    $cd  = 'cd '.escapeshellarg($d);
     $raw = (string)shell_exec($cd.' && '.PY.' '.escapeshellarg(__DIR__.'/predict.py').' '.escapeshellarg($tmp).' 2>&1');
     $pred = json_decode($raw, true);
     if (!$pred || !isset($pred['pred_angle'])) { @unlink($tmp); fail('predict error: '.trim($raw)); }

@@ -4,8 +4,9 @@ import math
 import argparse
 import pandas as pd
 import requests
+import config
 
-MAPBOX_TOKEN = os.environ.get("MAPBOX_TOKEN", "pk.eyJ1Ijoic2xhdnV0aWNoIiwiYSI6ImNtaTUwNG1oZDFheG4ybHF3OGh4NGU1b2EifQ.b18lhmFrzTMD1Ds38NThrw")
+MAPBOX_TOKEN = os.environ.get("MAPBOX_TOKEN", config.MAPBOX_TOKEN_KEY)
 
 def project(lat, lon, angle_deg, dist_m):
     R  = 6378137.0
