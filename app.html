@@ -204,7 +204,7 @@ async function doLogin() {
 }
 
 function doLogout() {
-  user = null; points = []; clearPoll(); clearLayers();
+  user = null; points = []; clearLayers();
   ['sec-login','sec-setup','sec-ctrl'].forEach(id => {
     document.getElementById(id).classList[id==='sec-login'?'remove':'add']('hidden');
   });
@@ -222,7 +222,6 @@ function showSetup(n) {
 function showCtrl() {
   document.getElementById('sec-setup').classList.add('hidden');
   document.getElementById('sec-ctrl').classList.remove('hidden');
-  clearPoll();
 }
 function setCsvCnt(n) {
   document.getElementById('csv-cnt').textContent = n;
@@ -249,59 +248,39 @@ async function uploadCSV(files) {
 
 // training
 async function startTrain() {
-  const res = await api(mkfd('train'));
-  if (res.error) { setPill('err', ' ' + res.error); return; }
-  setPill('run', 'Working...');
-  showLog();
-  pollTrainStatus();
+    const btn = document.getElementById('btn-train');
+    const logBox = document.getElementById('log');
+    
+    btn.disabled = true;
+    setPill('run', 'Training... please wait');
+    
+    logBox.style.display = 'block';
+    logBox.textContent = "Connecting to server and starting LSTM training...\n";
+
+    try {
+        const res = await api(mkfd('train'));
+
+        if (res.status === 'done') {
+            setPill('ok', 'Success!');
+            logBox.textContent = res.log;
+            setTimeout(showCtrl, 2000);
+        } else {
+            setPill('err', 'Failed');
+            logBox.textContent = "Error: " + (res.error || 'Unknown');
+        }
+    } catch (e) {
+        setPill('err', 'Connection lost');
+        logBox.textContent = "Connection was lost.";
+    } finally {
+        btn.disabled = false;
+    }
 }
+
 function setPill(cls, txt) {
   const p = document.getElementById('train-pill');
   p.className = 'pill pill-' + cls;
   p.textContent = txt;
 }
-function showLog() { document.getElementById('log').style.display = 'block'; }
-
-async function checkTrainStatus() { await pollOnce(); }
-
-function pollTrainStatus() {
-  clearPoll();
-  const tick = async () => {
-    await pollOnce();
-    const s = document.getElementById('train-pill').dataset.status;
-    if (s === 'running') pollTimer = setTimeout(tick, 3000);
-  };
-  tick();
-}
-
-async function pollOnce() {
-  const res = await api(mkfd('train_status'));
-  if (res.log) {
-    const l = document.getElementById('log');
-    l.style.display = 'block';
-    l.textContent   = res.log;
-    l.scrollTop     = l.scrollHeight;
-  }
-  const p = document.getElementById('train-pill');
-  if (res.status === 'running') {
-    setPill('run', 'Training...');
-    p.dataset.status = 'running';
-    pollTimer = setTimeout(pollOnce, 3000);
-  } else if (res.status === 'done') {
-    setPill('ok', 'Model is ready');
-    p.dataset.status = 'done';
-    clearPoll();
-    setTimeout(showCtrl, 1500);
-  } else if (res.status === 'error') {
-    setPill('err', 'Error');
-    p.dataset.status = 'error';
-  } else {
-    setPill('idle', 'Nothing...');
-    p.dataset.status = 'idle';
-  }
-}
-
-function clearPoll() { if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; } }
 
 // track
 function loadTrack(input) {
