@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>GPS Predictor</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; background: #1a1a2e; color: #eee; }
+
+  /* sidebar */
+  #sidebar {
+    width: 260px; min-width: 260px;
+    background: #16213e;
+    border-right: 1px solid #0f3460;
+    display: flex; flex-direction: column;
+    overflow-y: auto; padding: 16px; gap: 14px;
+  }
+  #sidebar h2 { font-size: 1rem; color: #e94560; letter-spacing: 1px; text-transform: uppercase; }
+  #sidebar hr { border: none; border-top: 1px solid #0f3460; }
+
+  label { font-size: 0.78rem; color: #aaa; display: block; margin-bottom: 4px; }
+
+  input[type=text] {
+    width: 100%; padding: 7px 10px; background: #0f3460;
+    border: 1px solid #1a4a8a; border-radius: 4px;
+    color: #eee; font-size: 0.85rem; outline: none;
+  }
+  input[type=text]:focus { border-color: #e94560; }
+
+  button {
+    width: 100%; padding: 8px; border: none; border-radius: 4px;
+    cursor: pointer; font-size: 0.82rem; font-weight: 600;
+    transition: opacity .15s;
+  }
+  button:disabled { opacity: .4; cursor: default; }
+  button:not(:disabled):hover { opacity: .85; }
+  .btn-red   { background: #e94560; color: #fff; }
+  .btn-blue  { background: #0f3460; color: #eee; border: 1px solid #1a4a8a; }
+  .btn-green { background: #1a7a4a; color: #fff; }
+
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row button { flex: 1; }
+
+  /* status pill */
+  .pill {
+    font-size: 0.72rem; padding: 3px 8px; border-radius: 3px;
+    display: inline-block; margin-bottom: 4px;
+  }
+  .pill-run  { background:#7a5000; color:#ffcc44; }
+  .pill-ok   { background:#0a4a2a; color:#44ffaa; }
+  .pill-err  { background:#4a0a1a; color:#ff6688; }
+  .pill-idle { background:#1a1a3a; color:#8888cc; }
+
+  /* log */
+  #log {
+    background: #0a0f1e; border: 1px solid #0f3460; border-radius: 4px;
+    padding: 8px; font-family: monospace; font-size: 0.65rem; color: #7a9; 
+    max-height: 120px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+    display: none;
+  }
+
+  /* status bar */
+  #status {
+    font-size: 0.75rem; color: #aaa; background: #0f1a30;
+    border: 1px solid #0f3460; border-radius: 4px; padding: 7px 10px;
+    min-height: 32px; line-height: 1.5;
+  }
+
+  /* drop zone */
+  #dropzone {
+    border: 1px dashed #0f3460; border-radius: 6px; background: #0f1a30;
+    padding: 14px 8px; text-align: center; cursor: pointer; transition: border-color .15s;
+  }
+  #dropzone:hover, #dropzone.over { border-color: #e94560; }
+  #dropzone .cnt { font-size: 1.6rem; font-weight: 700; color: #e94560; }
+  #dropzone .lbl { font-size: 0.72rem; color: #888; margin-top: 2px; }
+
+  .hidden { display: none !important; }
+
+  /* legend */
+  .legend { display: flex; flex-direction: column; gap: 5px; }
+  .leg { display: flex; align-items: center; gap: 7px; font-size: 0.72rem; color: #888; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* checkbox */
+  .chk { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; cursor: pointer; }
+  .chk input { width: 15px; height: 15px; accent-color: #e94560; cursor: pointer; }
+
+  /* map */
+  #map { flex: 1; }
+
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h2>GPS Predictor</h2>
+  <hr>
+
+  <!-- login -->
+  <div id="sec-login">
+    <input type="text" id="inp-user" placeholder="enter your login" autocomplete="off"/>
+    <br><br>
+    <button class="btn-red" onclick="doLogin()">Login</button>
+    <div id="login-err" style="color:#e94560;font-size:0.75rem;margin-top:5px"></div>
+  </div>
+
+  <!-- user info -->
+  <div id="sec-user" class="hidden" style="display:flex;align-items:center;justify-content:space-between">
+    <span id="lbl-user" style="color:#e94560;font-size:0.85rem;font-weight:600"></span>
+    <button class="btn-blue" style="width:auto;padding:4px 10px;font-size:0.72rem" onclick="doLogout()">Quit</button>
+  </div>
+
+  <!-- setup (no model) -->
+  <div id="sec-setup" class="hidden">
+    <hr>
+    <label>CSV for training</label>
+    <div id="dropzone" onclick="document.getElementById('f-train').click()">
+      <div class="cnt" id="csv-cnt">0</div>
+      <div class="lbl">files on server</div>
+      <div class="lbl" style="opacity:.6;margin-top:3px">click or drag</div>
+    </div>
+    <input type="file" id="f-train" multiple accept=".csv" onchange="uploadCSV(this.files)">
+    <div id="upload-note" style="font-size:0.72rem;color:#888;margin-top:4px"></div>
+    <hr>
+    <label>Model training</label>
+    <div id="train-pill" class="pill pill-idle">not started</div><br>
+    <button class="btn-green" id="btn-train" onclick="startTrain()" disabled>Start training</button>
+    <div id="log" style="margin-top:8px"></div>
+  </div>
+
+  <!-- controls (with model) -->
+  <div id="sec-ctrl" class="hidden">
+    <hr>
+    <label>Track</label>
+    <button class="btn-blue" onclick="document.getElementById('f-track').click()">Upload CSV</button>
+    <input type="file" id="f-track" accept=".csv" onchange="loadTrack(this)">
+    <div id="track-note" style="font-size:0.72rem;color:#888;margin-top:4px"></div>
+    <hr>
+    <label>Navigation</label>
+    <div class="btn-row">
+      <button class="btn-blue" id="btn-prev" onclick="step(-1)" disabled>◀ Previous</button>
+      <button class="btn-blue" id="btn-next" onclick="step(1)"  disabled>Next ▶</button>
+    </div>
+    <hr>
+    <label class="chk">
+      <input type="checkbox" id="cb-match">
+      Map matching (point on road)
+    </label>
+    <div id="status">Upload track</div>
+    <hr>
+    <div class="legend">
+      <div class="leg"><div class="dot" style="background:#00ff88"></div>Current position</div>
+      <div class="leg"><div class="dot" style="background:#ff4455"></div>Prediction</div>
+      <div class="leg"><div class="dot" style="background:#ffaa22"></div>On the road (matching)</div>
+      <div class="leg"><div class="dot" style="background:#4499ff;border-radius:2px"></div>Track</div>
+    </div>
+  </div>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script>
+// map
+const map = L.map('map').setView([52.437, 9.748], 14);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution:'© OSM'}).addTo(map);
+
+// state
+let user = null, points = [], idx = 20, busy = false, pollTimer = null;
+let lTrack = null, lCur = null, lPred = null, lMatch = null;
+
+// api
+async function api(fd) {
+  if (user) fd.append('user', user);
+  const r = await fetch('index.php', {method:'POST', body:fd});
+  return r.json();
+}
+
+function mkfd(action, extra={}) {
+  const fd = new FormData();
+  fd.append('action', action);
+  Object.entries(extra).forEach(([k,v]) => fd.append(k, v));
+  return fd;
+}
+
+// login
+async function doLogin() {
+  const name = document.getElementById('inp-user').value.trim();
+  if (!name) return;
+  document.getElementById('login-err').textContent = '';
+  const res = await api(mkfd('login', {user: name}));
+  if (res.error) { document.getElementById('login-err').textContent = res.error; return; }
+  user = name;
+  document.getElementById('sec-login').classList.add('hidden');
+  document.getElementById('sec-user').classList.remove('hidden');
+  document.getElementById('sec-user').style.display = 'flex';
+  document.getElementById('lbl-user').textContent = '● ' + user;
+  if (res.has_model) showCtrl();
+  else showSetup(res.csv_count || 0);
+}
+
+function doLogout() {
+  user = null; points = []; clearPoll(); clearLayers();
+  ['sec-login','sec-setup','sec-ctrl'].forEach(id => {
+    document.getElementById(id).classList[id==='sec-login'?'remove':'add']('hidden');
+  });
+  document.getElementById('sec-user').classList.add('hidden');
+  document.getElementById('inp-user').value = '';
+}
+
+// setup
+function showSetup(n) {
+  document.getElementById('sec-setup').classList.remove('hidden');
+  document.getElementById('sec-ctrl').classList.add('hidden');
+  setCsvCnt(n);
+  checkTrainStatus();
+}
+function showCtrl() {
+  document.getElementById('sec-setup').classList.add('hidden');
+  document.getElementById('sec-ctrl').classList.remove('hidden');
+  clearPoll();
+}
+function setCsvCnt(n) {
+  document.getElementById('csv-cnt').textContent = n;
+  document.getElementById('btn-train').disabled = n < 50;
+}
+
+// drag & drop
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); uploadCSV(e.dataTransfer.files); });
+
+async function uploadCSV(files) {
+  if (!files.length) return;
+  const fd = new FormData();
+  fd.append('action', 'upload');
+  for (const f of files) fd.append('files[]', f);
+  document.getElementById('upload-note').textContent = `Uploading ${files.length} file(s)...`;
+  const res = await api(fd);
+  document.getElementById('upload-note').textContent =
+    `${res.ok} uploaded` + (res.fail ? `, ${res.fail} errors` : '');
+  setCsvCnt(res.total || 0);
+}
+
+// training
+async function startTrain() {
+  const res = await api(mkfd('train'));
+  if (res.error) { setPill('err', ' ' + res.error); return; }
+  setPill('run', 'Working...');
+  showLog();
+  pollTrainStatus();
+}
+function setPill(cls, txt) {
+  const p = document.getElementById('train-pill');
+  p.className = 'pill pill-' + cls;
+  p.textContent = txt;
+}
+function showLog() { document.getElementById('log').style.display = 'block'; }
+
+async function checkTrainStatus() { await pollOnce(); }
+
+function pollTrainStatus() {
+  clearPoll();
+  const tick = async () => {
+    await pollOnce();
+    const s = document.getElementById('train-pill').dataset.status;
+    if (s === 'running') pollTimer = setTimeout(tick, 3000);
+  };
+  tick();
+}
+
+async function pollOnce() {
+  const res = await api(mkfd('train_status'));
+  if (res.log) {
+    const l = document.getElementById('log');
+    l.style.display = 'block';
+    l.textContent   = res.log;
+    l.scrollTop     = l.scrollHeight;
+  }
+  const p = document.getElementById('train-pill');
+  if (res.status === 'running') {
+    setPill('run', 'Training...');
+    p.dataset.status = 'running';
+    pollTimer = setTimeout(pollOnce, 3000);
+  } else if (res.status === 'done') {
+    setPill('ok', 'Model is ready');
+    p.dataset.status = 'done';
+    clearPoll();
+    setTimeout(showCtrl, 1500);
+  } else if (res.status === 'error') {
+    setPill('err', 'Error');
+    p.dataset.status = 'error';
+  } else {
+    setPill('idle', 'Nothing...');
+    p.dataset.status = 'idle';
+  }
+}
+
+function clearPoll() { if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; } }
+
+// track
+function loadTrack(input) {
+  if (!input.files.length) return;
+  Papa.parse(input.files[0], {
+    header: true, dynamicTyping: true,
+    complete: res => {
+      points = res.data.filter(r => r.lat && r.lon)
+                       .map(r => ({lat:r.lat, lon:r.lon, ts:r.unix||r.ts||0}));
+      if (points.length < 21) {
+        document.getElementById('track-note').textContent = 'Minimum 20 points needed'; return;
+      }
+      document.getElementById('track-note').textContent = points.length + ' points';
+      clearLayers();
+      lTrack = L.polyline(points.map(p=>[p.lat,p.lon]), {color:'#4499ff',weight:2,opacity:0.6}).addTo(map);
+      map.fitBounds(lTrack.getBounds());
+      idx = 20;
+      document.getElementById('btn-prev').disabled = false;
+      document.getElementById('btn-next').disabled = false;
+      renderMap();
+    }
+  });
+}
+
+// navigation
+function step(d) {
+  const n = idx + d;
+  if (n < 20 || n >= points.length) return;
+  idx = n; renderMap();
+}
+
+map.on('click', e => {
+  if (!points.length) return;
+  let best = 20, bestD = Infinity;
+  points.forEach((p,i) => {
+    const d = Math.hypot(p.lat-e.latlng.lat, p.lon-e.latlng.lng);
+    if (d < bestD) { bestD=d; best=i; }
+  });
+  idx = Math.max(20, best); renderMap();
+});
+
+// render, predict
+async function renderMap() {
+  if (!points.length) return;
+  const p = points[idx];
+
+  if (lCur) lCur.remove();
+  lCur = L.circleMarker([p.lat, p.lon], {
+    radius:7, color:'#00ff88', fillColor:'#00ff88', fillOpacity:1, weight:2
+  }).addTo(map).bindPopup(`Point ${idx}<br>${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}`);
+
+  if (busy) return;
+  busy = true;
+  document.getElementById('status').textContent = 'prediction...';
+
+  try {
+    const win = points.slice(Math.max(0, idx-19), idx+1);
+    const csv = "unix,lat,lon\n" + win.map(r=>`${r.ts},${r.lat},${r.lon}`).join("\n");
+    const fd  = new FormData();
+    fd.append('action',   'predict');
+    fd.append('user',     user);
+    fd.append('file',     new Blob([csv],{type:'text/csv'}), 'q.csv');
+    fd.append('matching', document.getElementById('cb-match').checked ? '1' : '0');
+
+    const res = await fetch('index.php',{method:'POST',body:fd}).then(r=>r.json());
+
+    if (res.error) { document.getElementById('status').textContent = ' ' + res.error; busy=false; return; }
+
+    const angle = res.pred_angle;
+    const proj  = project(p.lat, p.lon, angle, 30);
+
+    if (lPred) lPred.remove();
+    lPred = L.circleMarker(proj, {
+      radius:8, color:'#ff4455', fillColor:'#ff4455', fillOpacity:0.9, weight:2
+    }).addTo(map).bindPopup(`Prediction: ${angle.toFixed(1)}°`);
+
+    if (lMatch) { lMatch.remove(); lMatch = null; }
+
+    let info = `pt ${idx}  →  ${angle.toFixed(1)}°`;
+    if (res.match && res.match.status === 'success') {
+      lMatch = L.circleMarker([res.match.lat, res.match.lon], {
+        radius:10, color:'#ffaa22', fillColor:'#ffaa22', fillOpacity:0.9, weight:2
+      }).addTo(map).bindPopup(`On the road: ${res.match.angle.toFixed(1)}°`);
+      info += `\non the road: ${res.match.lat.toFixed(5)}, ${res.match.lon.toFixed(5)}`;
+    }
+    document.getElementById('status').textContent = info;
+
+  } catch(e) { document.getElementById('status').textContent = 'network error'; }
+  busy = false;
+}
+
+function project(lat, lon, deg, dist) {
+  const R=6378137, br=deg*Math.PI/180, φ1=lat*Math.PI/180, λ1=lon*Math.PI/180, d=dist/R;
+  const φ2 = Math.asin(Math.sin(φ1)*Math.cos(d)+Math.cos(φ1)*Math.sin(d)*Math.cos(br));
+  const λ2 = λ1+Math.atan2(Math.sin(br)*Math.sin(d)*Math.cos(φ1),Math.cos(d)-Math.sin(φ1)*Math.sin(φ2));
+  return [φ2*180/Math.PI, λ2*180/Math.PI];
+}
+
+function clearLayers() {
+  [lTrack,lCur,lPred,lMatch].forEach(l=>{if(l)l.remove();});
+  lTrack=lCur=lPred=lMatch=null;
+}
+
+// keyboard
+document.addEventListener('keydown', e => {
+  if (document.activeElement === document.getElementById('inp-user')) return;
+  if (e.key==='ArrowLeft')  step(-1);
+  if (e.key==='ArrowRight') step(1);
+});
+document.getElementById('inp-user').addEventListener('keydown', e => {
+  if (e.key==='Enter') doLogin();
+});
+</script>
+</body>
+</html>
