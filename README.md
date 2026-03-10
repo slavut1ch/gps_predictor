@@ -73,7 +73,7 @@ MAPBOX_TOKEN = "pk.eyJ1Ijoi..."
 php -S localhost:8000 -c php.ini
 ```
 
-Otvorte prehliadač na `(http://localhost:8080/index.php)`.
+Otvorte prehliadač na `(http://localhost:8000/index.php)`.
 
 ---
 
