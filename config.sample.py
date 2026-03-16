@@ -1,0 +1,1 @@
+MAPBOX_TOKEN_KEY = "" # your mapbox public token from https://console.mapbox.com/account/access-tokens/

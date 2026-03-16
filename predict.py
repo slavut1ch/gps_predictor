@@ -1,9 +1,9 @@
-import sys
+import argparse
 import json
 import torch
 import torch.nn as nn
-import numpy as np
-import pandas as pd
+import numpy
+import pandas
 import math
 
 class LSTMDirection(nn.Module):
@@ -27,13 +27,17 @@ def get_angle_diff(a1, a2):
     return min(d, 360 - d)
 
 def main():
-    if len(sys.argv) < 2: return
-    ckpt = torch.load("model.pt", map_location="cpu")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--csv", required=True, help="Path to CSV file")
+    ap.add_argument("--model", required=True, help="Path to model file .pt")
+    args = ap.parse_args()
+    
+    ckpt = torch.load(args.model, map_location="cpu")
     model = LSTMDirection(ckpt["feat_dim"], 128, 3, ckpt["dir_bins"])
     model.load_state_dict(ckpt["state_dict"])
     model.eval()
 
-    df = pd.read_csv(sys.argv[1])
+    df = pandas.read_csv(args.csv)
     lats, lons, ts = df['lat'].values, df['lon'].values, df['unix'].values
     seq_len = ckpt["seq_len"]
 
@@ -53,7 +57,7 @@ def main():
     x = torch.tensor([feats[-(seq_len):]], dtype=torch.float32)
     with torch.no_grad():
         probs = torch.softmax(model(x), dim=-1).numpy()[0]
-        pred_bin = np.argmax(probs)
+        pred_bin = numpy.argmax(probs)
         pred_angle = (pred_bin + 0.5) * (360.0 / ckpt["dir_bins"])
 
     print(json.dumps({"pred_angle": float(pred_angle)}))

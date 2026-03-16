@@ -1,11 +1,15 @@
 import os
+import sys
 import json
 import math
 import argparse
 import pandas as pd
 import requests
 
-MAPBOX_TOKEN = os.environ.get("MAPBOX_TOKEN", "pk.eyJ1Ijoic2xhdnV0aWNoIiwiYSI6ImNtaTUwNG1oZDFheG4ybHF3OGh4NGU1b2EifQ.b18lhmFrzTMD1Ds38NThrw")
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import config
+
+MAPBOX_TOKEN = config.MAPBOX_TOKEN_KEY
 
 def project(lat, lon, angle_deg, dist_m):
     R  = 6378137.0
@@ -47,14 +51,14 @@ def match_mapbox(lat1, lon1, lat2, lon2, token):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--csv_file", required=True)
+    parser.add_argument("--csv",      required=True)
     parser.add_argument("--angle",    type=float, required=True)
     parser.add_argument("--token",    default=MAPBOX_TOKEN)
     parser.add_argument("--dist",     type=int,   default=30)
     args = parser.parse_args()
 
     try:
-        df = pd.read_csv(args.csv_file)
+        df = pd.read_csv(args.csv)
         if df.empty:
             raise ValueError("CSV is empty")
 

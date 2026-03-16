@@ -33,7 +33,11 @@
     cursor: pointer; font-size: 0.82rem; font-weight: 600;
     transition: opacity .15s;
   }
-  button:disabled { opacity: .4; cursor: default; }
+  button:disabled {
+    cursor: not-allowed;
+    filter: grayscale(1);
+    opacity: 0.5;
+  }
   button:not(:disabled):hover { opacity: .85; }
   .btn-red   { background: #e94560; color: #fff; }
   .btn-blue  { background: #0f3460; color: #eee; border: 1px solid #1a4a8a; }
@@ -171,6 +175,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution:'
 
 // state
 let user = null, points = [], idx = 20, busy = false, pollTimer = null;
+let minCsvRequired = 50;
 let lTrack = null, lCur = null, lPred = null, lMatch = null;
 
 // api
@@ -195,6 +200,9 @@ async function doLogin() {
   const res = await api(mkfd('login', {user: name}));
   if (res.error) { document.getElementById('login-err').textContent = res.error; return; }
   user = name;
+  if (res.min_csv) {
+    minCsvRequired = res.min_csv;
+  }
   document.getElementById('sec-login').classList.add('hidden');
   document.getElementById('sec-user').classList.remove('hidden');
   document.getElementById('sec-user').style.display = 'flex';
@@ -217,15 +225,16 @@ function showSetup(n) {
   document.getElementById('sec-setup').classList.remove('hidden');
   document.getElementById('sec-ctrl').classList.add('hidden');
   setCsvCnt(n);
-  checkTrainStatus();
 }
+
 function showCtrl() {
   document.getElementById('sec-setup').classList.add('hidden');
   document.getElementById('sec-ctrl').classList.remove('hidden');
 }
+
 function setCsvCnt(n) {
   document.getElementById('csv-cnt').textContent = n;
-  document.getElementById('btn-train').disabled = n < 50;
+  document.getElementById('btn-train').disabled = n < minCsvRequired;
 }
 
 // drag & drop
@@ -238,6 +247,7 @@ async function uploadCSV(files) {
   if (!files.length) return;
   const fd = new FormData();
   fd.append('action', 'upload');
+  fd.append('user', user);
   for (const f of files) fd.append('files[]', f);
   document.getElementById('upload-note').textContent = `Uploading ${files.length} file(s)...`;
   const res = await api(fd);
@@ -263,6 +273,7 @@ async function startTrain() {
         if (res.status === 'done') {
             setPill('ok', 'Success!');
             logBox.textContent = res.log;
+            logBox.scrollTop = logBox.scrollHeight;
             setTimeout(showCtrl, 2000);
         } else {
             setPill('err', 'Failed');
@@ -324,16 +335,20 @@ map.on('click', e => {
 
 // render, predict
 async function renderMap() {
-  if (!points.length) return;
+  if (!points.length || busy) return;
   const p = points[idx];
+  busy = true;
+
+  const btnPrev = document.getElementById('btn-prev');
+  const btnNext = document.getElementById('btn-next');
+  btnPrev.disabled = true;
+  btnNext.disabled = true;
 
   if (lCur) lCur.remove();
   lCur = L.circleMarker([p.lat, p.lon], {
     radius:7, color:'#00ff88', fillColor:'#00ff88', fillOpacity:1, weight:2
   }).addTo(map).bindPopup(`Point ${idx}<br>${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}`);
 
-  if (busy) return;
-  busy = true;
   document.getElementById('status').textContent = 'prediction...';
 
   try {
@@ -368,8 +383,12 @@ async function renderMap() {
     }
     document.getElementById('status').textContent = info;
 
-  } catch(e) { document.getElementById('status').textContent = 'network error'; }
-  busy = false;
+  } catch(e) { document.getElementById('status').textContent = 'network error'; 
+  } finally {
+    busy = false;
+    btnPrev.disabled = (idx <= 20);
+    btnNext.disabled = (idx >= points.length - 1);
+  }
 }
 
 function project(lat, lon, deg, dist) {

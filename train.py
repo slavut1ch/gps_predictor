@@ -1,8 +1,8 @@
 import math
 import argparse
 from pathlib import Path
-import numpy as np
-import pandas as pd
+import numpy
+import pandas
 
 import torch
 import torch.nn as nn
@@ -36,7 +36,7 @@ def time_sin_cos(ts):
 
 
 def parse_gps(path: Path):
-    df = pd.read_csv(path)
+    df = pandas.read_csv(path)
     cols = {c.lower(): c for c in df.columns}
 
     lat = cols.get("lat") or cols.get("latitude")
@@ -48,11 +48,11 @@ def parse_gps(path: Path):
             tcol = cols[c]
             break
 
-    ts = pd.to_numeric(df[tcol], errors="coerce")
+    ts = pandas.to_numeric(df[tcol], errors="coerce")
     if ts.isna().all():
-        ts = pd.to_datetime(df[tcol]).astype("int64") // 1_000_000_000
+        ts = pandas.to_datetime(df[tcol]).astype("int64") // 1_000_000_000
 
-    df2 = pd.DataFrame({
+    df2 = pandas.DataFrame({
         "lat": df[lat].astype(float),
         "lon": df[lon].astype(float),
         "ts": ts.astype(int)
@@ -103,7 +103,7 @@ def build_sequences(tracks, seq_len=20, dir_bins=36, min_turn_deg=5, keep_straig
 
             delta = get_angle_diff(br_prev, br_next)
 
-            if delta < min_turn_deg and np.random.rand() > keep_straight_frac:
+            if delta < min_turn_deg and numpy.random.rand() > keep_straight_frac:
                 continue
 
             feats = []
@@ -146,7 +146,7 @@ def build_sequences(tracks, seq_len=20, dir_bins=36, min_turn_deg=5, keep_straig
                     ts_c,
                 ])
 
-            X.append(np.array(feats, np.float32))
+            X.append(numpy.array(feats, numpy.float32))
             Y.append(int((br_next / 360) * dir_bins) % dir_bins)
             Meta.append({"lat": lat1, "lon": lon1})
 

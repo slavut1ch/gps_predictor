@@ -1,0 +1,17 @@
+/app/storage/*
+!/app/storage/.gitkeep
+/logs/
+
+*.csv
+*.log
+*.pt
+
+config.php
+config.py
+
+/venv/
+/__pycache__/
+.env
+
+/.idea/
+/.vscode/
