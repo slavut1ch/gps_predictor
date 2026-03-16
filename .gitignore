@@ -1,6 +1,5 @@
-/app/storage/*
-!/app/storage/.gitkeep
-/logs/
+app/storage/*
+logs/
 
 *.csv
 *.log
@@ -9,9 +8,9 @@
 config.php
 config.py
 
-/venv/
-/__pycache__/
+venv/
+__pycache__/
 .env
 
-/.idea/
-/.vscode/
+.idea/
+.vscode/
