@@ -49,13 +49,9 @@ MAPBOX_TOKEN_KEY = "pk.eyJ1Ijoi..."  # https://console.mapbox.com/account/access
 ### 3. Build and run
 
 ```bash
-docker build -t gps-predictor .
+docker build -t gps_predictor .
 
-docker run -d \
-  -p 8080:80 \
-  -v $(pwd)/app/storage:/var/www/app/storage \
-  --name gps \
-  gps-predictor
+docker run -d -p 8080:80 --name gps gps_predictor
 ```
 
 Open in browser: `http://localhost:8080/app.html`
